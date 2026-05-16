@@ -1,0 +1,109 @@
+#!/usr/bin/env node
+/** fleetcheck CLI — `scan` and `report` subcommands. `fix` is added in build phase 8. */
+
+import { parseArgs } from "node:util";
+import { resolve, join } from "node:path";
+import { readFileSync } from "node:fs";
+import { loadFleetConfig, classifyRepo } from "./fleet.js";
+import { runChecks } from "./runner.js";
+import { allChecks } from "./checks/index.js";
+import { writeJsonReports } from "./reporters/json.js";
+import { renderMatrix, writeMatrix } from "./reporters/markdown.js";
+import type { ScanResult, Severity, Finding } from "./types.js";
+
+function log(msg: string): void {
+  process.stderr.write(msg + "\n");
+}
+
+function summarize(findings: Finding[]): string {
+  const c: Record<Severity, number> = { security: 0, error: 0, warning: 0, info: 0 };
+  for (const f of findings) c[f.severity]++;
+  if (c.security + c.error + c.warning + c.info === 0) return "clean";
+  return `${c.security}S ${c.error}E ${c.warning}W ${c.info}I`;
+}
+
+async function cmdScan(args: string[]): Promise<void> {
+  const { values } = parseArgs({
+    args,
+    options: {
+      config: { type: "string", default: "fleet.config.json" },
+      repo: { type: "string" },
+      out: { type: "string", default: "reports" },
+      "fail-on": { type: "string" },
+    },
+  });
+
+  const config = loadFleetConfig(values.config as string);
+  let entries = config.repos.filter((r) => !r.skip);
+  if (values.repo) entries = entries.filter((r) => r.name === values.repo);
+
+  if (entries.length === 0) {
+    log("No repos to scan (check --repo / --config / skip flags).");
+    process.exitCode = 1;
+    return;
+  }
+
+  log(`fleetcheck: scanning ${entries.length} repo(s) with ${allChecks.length} check(s)`);
+  const results = [];
+  for (const entry of entries) {
+    const ctx = classifyRepo(entry);
+    const result = await runChecks(ctx, allChecks);
+    log(`  ${entry.name} [${ctx.kind}] — ${summarize(result.findings)}`);
+    results.push(result);
+  }
+
+  const scan: ScanResult = { generatedAt: new Date().toISOString(), repos: results };
+  const outDir = resolve(values.out as string);
+  writeJsonReports(scan, outDir);
+  writeMatrix(scan, outDir);
+  log(`\nReports written to ${outDir}/ (scan.json, fleet-health-matrix.md, <repo>.json)`);
+
+  if (values["fail-on"]) {
+    const order: Severity[] = ["security", "error", "warning", "info"];
+    const threshold = order.indexOf(values["fail-on"] as Severity);
+    if (threshold >= 0) {
+      const hit = scan.repos.some((r) =>
+        r.findings.some((f) => order.indexOf(f.severity) <= threshold),
+      );
+      if (hit) process.exitCode = 2;
+    }
+  }
+}
+
+function cmdReport(args: string[]): void {
+  const { values } = parseArgs({
+    args,
+    options: { out: { type: "string", default: "reports" } },
+  });
+  const outDir = resolve(values.out as string);
+  const scan = JSON.parse(readFileSync(join(outDir, "scan.json"), "utf8")) as ScanResult;
+  writeMatrix(scan, outDir);
+  process.stdout.write(renderMatrix(scan) + "\n");
+}
+
+function usage(): void {
+  log("usage: fleetcheck <command> [options]");
+  log("");
+  log("  scan     --config <path> [--repo <name>] [--out <dir>] [--fail-on <severity>]");
+  log("  report   [--out <dir>]");
+}
+
+const [cmd, ...rest] = process.argv.slice(2);
+switch (cmd) {
+  case "scan":
+    await cmdScan(rest);
+    break;
+  case "report":
+    cmdReport(rest);
+    break;
+  case undefined:
+  case "help":
+  case "--help":
+  case "-h":
+    usage();
+    break;
+  default:
+    log(`unknown command: ${cmd}`);
+    usage();
+    process.exitCode = 1;
+}

@@ -1,0 +1,31 @@
+{
+  "name": "fleetcheck",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Fleet-wide linter for the iSimplifyMe Next.js/SST repo fleet — encodes known failure-mode rules and security checks.",
+  "bin": {
+    "fleetcheck": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/cli.ts",
+    "scan": "tsx src/cli.ts scan",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "globby": "^14.0.2",
+    "semver": "^7.6.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/semver": "^7.5.8",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
