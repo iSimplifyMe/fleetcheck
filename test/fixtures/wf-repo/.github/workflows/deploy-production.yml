@@ -1,0 +1,10 @@
+name: Deploy Production
+on:
+  push:
+    branches: [main]
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: npx sst deploy --stage production
