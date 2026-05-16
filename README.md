@@ -25,10 +25,10 @@ Each check declares whether it applies to every repo or only to Next.js repos
 | `public-dir-collision` | next | error | a `public/<dir>` that collides with an app route (`s3.routes` 403) |
 | `dynamic-params` | next | warning | `dynamicParams = false` — verify `generateStaticParams` is exhaustive |
 | `jsonld-script` | next | warning | JSON-LD rendered through `next/script` instead of a plain `<script>` |
-| `aeo-requirements` | next | warning | pages missing h1 / AtomicAnswer / FAQ schema |
+| `aeo-requirements` | next | info | per-repo summary of pages missing h1 / AtomicAnswer / FAQ schema |
 | `blog-schema-spokes` | next | warning | BlogPosting/Article schema on a non-blog route |
 | `blog-url-year` | next | warning | year tokens in blog route URLs |
-| `eca-template-residue` | next | warning | leftover clone-template placeholder copy |
+| `eca-template-residue` | next | warning | lorem ipsum / placeholder phone numbers left in shipped copy |
 
 Severity order: `security` > `error` > `warning` > `info`.
 

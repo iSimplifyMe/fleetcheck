@@ -7,6 +7,9 @@ const SOURCE_GLOBS = ["**/*.{ts,tsx,js,jsx,mjs,cjs}"];
 
 const SOURCE_IGNORE = [
   "**/node_modules/**",
+  "**/.git/**",
+  "**/.claude/**",
+  "**/.worktrees/**",
   "**/.next/**",
   "**/dist/**",
   "**/build/**",
@@ -54,4 +57,26 @@ export function matchingLines(
     if (regex.test(lines[i])) out.push({ line: i + 1, text: lines[i] });
   }
   return out;
+}
+
+const PAGE_GLOBS = [
+  "app/**/page.{tsx,jsx,ts,js}",
+  "src/app/**/page.{tsx,jsx,ts,js}",
+];
+
+/** Relative paths of Next.js App Router page files (app/ or src/app/). */
+export function appPageFiles(repoPath: string): string[] {
+  return globbySync(PAGE_GLOBS, {
+    cwd: repoPath,
+    gitignore: true,
+    ignore: SOURCE_IGNORE,
+  });
+}
+
+/** Route path of a page file, relative to the app dir. "" for the app root. */
+export function routePath(pageRelPath: string): string {
+  return pageRelPath
+    .replace(/^src\/app\//, "")
+    .replace(/^app\//, "")
+    .replace(/\/?page\.[a-z]+$/, "");
 }

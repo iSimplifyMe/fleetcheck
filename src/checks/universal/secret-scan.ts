@@ -56,8 +56,12 @@ export const secretScan: Check = {
       ignore: [
         "**/node_modules/**",
         "**/.git/**",
+        "**/.claude/**",
+        "**/.worktrees/**",
         "**/dist/**",
         "**/.next/**",
+        "**/.sst/**",
+        "**/.turbo/**",
         "**/build/**",
         "**/coverage/**",
       ],

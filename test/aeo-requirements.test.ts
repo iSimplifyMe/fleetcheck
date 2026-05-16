@@ -20,14 +20,14 @@ describe("missingAeoElements", () => {
 });
 
 describe("aeo-requirements check", () => {
-  it("flags a page missing AEO elements", async () => {
+  it("reports one info-level summary per repo with incomplete pages", async () => {
     const findings = await aeoRequirements.run(fixtureCtx("next-aeo-bad", "next"));
-    expect(findings.length).toBeGreaterThanOrEqual(1);
+    expect(findings).toHaveLength(1);
     expect(findings[0].checkId).toBe("aeo-requirements");
-    expect(findings[0].severity).toBe("warning");
+    expect(findings[0].severity).toBe("info");
   });
 
-  it("passes a page that has the AEO elements", async () => {
+  it("reports nothing when every page has the AEO elements", async () => {
     const findings = await aeoRequirements.run(fixtureCtx("next-aeo-good", "next"));
     expect(findings).toHaveLength(0);
   });

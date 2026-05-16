@@ -1,12 +1,13 @@
 /**
- * aeo-requirements — every page should carry the core AEO scaffolding: an h1,
- * an AtomicAnswer block, and FAQ schema. Heuristic: scans the page file plus a
- * co-located layout; scaffolding inside imported components is not visible.
+ * aeo-requirements — surfaces how many App Router pages lack the core AEO
+ * scaffolding (an h1, an AtomicAnswer block, FAQ schema). Reported as one
+ * info-level summary per repo: it is a heuristic (page file + co-located
+ * layout only — scaffolding inside imported components is not visible), so
+ * it informs rather than fails a build.
  */
 
 import { join, dirname } from "node:path";
-import { globbySync } from "globby";
-import { readFileSafe } from "../lib.js";
+import { readFileSafe, appPageFiles } from "../lib.js";
 import type { Check, Finding } from "../../types.js";
 
 interface AeoElement {
@@ -28,33 +29,36 @@ export function missingAeoElements(content: string): string[] {
 export const aeoRequirements: Check = {
   id: "aeo-requirements",
   title: "Pages carry the required AEO scaffolding",
-  severity: "warning",
+  severity: "info",
   appliesTo: (repo) => repo.hasNext,
   run(repo): Finding[] {
-    const findings: Finding[] = [];
-    const pages = globbySync(["app/**/page.{tsx,jsx,ts,js}"], {
-      cwd: repo.path,
-      gitignore: true,
-    });
+    const pages = appPageFiles(repo.path);
+    if (pages.length === 0) return [];
+
+    let incomplete = 0;
+    const tally: Record<string, number> = {};
     for (const page of pages) {
       let content = readFileSafe(join(repo.path, page)) ?? "";
-      const layoutContent = readFileSafe(
-        join(repo.path, dirname(page), "layout.tsx"),
-      );
-      if (layoutContent) content += "\n" + layoutContent;
+      const layout = readFileSafe(join(repo.path, dirname(page), "layout.tsx"));
+      if (layout) content += "\n" + layout;
 
       const missing = missingAeoElements(content);
       if (missing.length > 0) {
-        findings.push({
-          checkId: "aeo-requirements",
-          severity: "warning",
-          message:
-            `Page does not reference: ${missing.join(", ")} — verify AEO ` +
-            `scaffolding (it may live in imported components).`,
-          file: page,
-        });
+        incomplete++;
+        for (const m of missing) tally[m] = (tally[m] ?? 0) + 1;
       }
     }
-    return findings;
+    if (incomplete === 0) return [];
+
+    const parts = Object.entries(tally).map(([name, n]) => `${n}x ${name}`);
+    return [
+      {
+        checkId: "aeo-requirements",
+        severity: "info",
+        message:
+          `${incomplete}/${pages.length} pages missing AEO scaffolding ` +
+          `(${parts.join(", ")}) — heuristic, page file + layout only.`,
+      },
+    ];
   },
 };

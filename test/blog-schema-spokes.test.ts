@@ -28,4 +28,9 @@ describe("blog-schema-spokes check", () => {
     const findings = await blogSchemaSpokes.run(fixtureCtx("next-spoke-ok", "next"));
     expect(findings).toHaveLength(0);
   });
+
+  it("detects spoke schema under a src/app/ tree", async () => {
+    const findings = await blogSchemaSpokes.run(fixtureCtx("next-srcapp-spoke", "next"));
+    expect(findings).toHaveLength(1);
+  });
 });

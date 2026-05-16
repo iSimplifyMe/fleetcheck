@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { matchingLines } from "../src/checks/lib.js";
+import { matchingLines, routePath } from "../src/checks/lib.js";
 
 describe("matchingLines", () => {
   it("returns 1-based line numbers for matches", () => {
@@ -12,5 +12,17 @@ describe("matchingLines", () => {
 
   it("returns empty when nothing matches", () => {
     expect(matchingLines("nothing here", /xyz/)).toEqual([]);
+  });
+});
+
+describe("routePath", () => {
+  it("strips the app/ prefix and the page suffix", () => {
+    expect(routePath("app/services/roofing/page.tsx")).toBe("services/roofing");
+    expect(routePath("app/page.tsx")).toBe("");
+  });
+
+  it("strips the src/app/ prefix too", () => {
+    expect(routePath("src/app/services/roofing/page.tsx")).toBe("services/roofing");
+    expect(routePath("src/app/page.tsx")).toBe("");
   });
 });

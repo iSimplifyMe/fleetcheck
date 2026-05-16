@@ -14,26 +14,23 @@ interface ResidueMarker {
   ownedBy?: string[];
 }
 
+// Only unambiguous placeholder copy — strings with no legitimate reason to
+// appear in shipped site copy. Template tokens like CLIENT_NAME are excluded:
+// they are used intentionally in tenant/merge code and produce false positives.
 const MARKERS: ResidueMarker[] = [
   { name: "lorem ipsum placeholder", regex: /lorem ipsum/i },
   {
     name: "placeholder phone number",
     regex: /\(?\b555\)?[\s.-]?555[\s.-]?5555\b/,
   },
-  {
-    name: "client-starter template reference",
-    regex: /client-starter/i,
-    ownedBy: ["client-starter"],
-  },
-  {
-    name: "unfilled client-name placeholder",
-    regex: /\bCLIENT_NAME\b|YOUR[_\s]CLIENT/i,
-  },
-  {
-    name: "Electrify Atlas template residue",
-    regex: /electrify\s*atlas/i,
-    ownedBy: ["electrify"],
-  },
+];
+
+/** Residue lives in shipped site code/content — not in docs or handoff notes. */
+const RESIDUE_GLOBS = [
+  "app/**/*.{ts,tsx,js,jsx,md,mdx}",
+  "src/**/*.{ts,tsx,js,jsx,md,mdx}",
+  "components/**/*.{ts,tsx,js,jsx}",
+  "content/**/*.{md,mdx}",
 ];
 
 /** Marker names found in a single line, given the owning repo. */
@@ -54,7 +51,7 @@ export const ecaTemplateResidue: Check = {
   appliesTo: (repo) => repo.hasNext,
   run(repo): Finding[] {
     const findings: Finding[] = [];
-    for (const rel of sourceFiles(repo.path, ["**/*.{ts,tsx,js,jsx,md,mdx}"])) {
+    for (const rel of sourceFiles(repo.path, RESIDUE_GLOBS)) {
       const content = readFileSafe(join(repo.path, rel));
       if (!content) continue;
       const lines = content.split(/\r?\n/);

@@ -6,7 +6,7 @@
 
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { globbySync } from "globby";
+import { appPageFiles, routePath } from "../lib.js";
 import type { Check, Finding } from "../../types.js";
 
 /** First real URL segment of a route path (route groups dropped). null if root. */
@@ -40,14 +40,9 @@ function publicSubdirs(repoPath: string): string[] {
 }
 
 function routeSegments(repoPath: string): string[] {
-  const pages = globbySync(["app/**/page.{tsx,jsx,ts,js}"], {
-    cwd: repoPath,
-    gitignore: true,
-  });
   const segs = new Set<string>();
-  for (const page of pages) {
-    const mid = page.replace(/^app\//, "").replace(/\/?page\.[a-z]+$/, "");
-    const seg = firstUrlSegment(mid);
+  for (const page of appPageFiles(repoPath)) {
+    const seg = firstUrlSegment(routePath(page));
     if (seg) segs.add(seg);
   }
   return [...segs];

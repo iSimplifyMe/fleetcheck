@@ -16,4 +16,9 @@ describe("secret-scan", () => {
     const findings = await secretScan.run(fixtureCtx("secret-clean"));
     expect(findings).toHaveLength(0);
   });
+
+  it("does not scan inside .claude/ agent-worktree directories", async () => {
+    const findings = await secretScan.run(fixtureCtx("secret-in-claude-dir"));
+    expect(findings).toHaveLength(0);
+  });
 });

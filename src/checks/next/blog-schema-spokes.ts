@@ -5,8 +5,7 @@
  */
 
 import { join } from "node:path";
-import { globbySync } from "globby";
-import { readFileSafe } from "../lib.js";
+import { readFileSafe, appPageFiles, routePath } from "../lib.js";
 import type { Check, Finding } from "../../types.js";
 
 const ARTICLE_SCHEMA = /"@type"\s*:\s*"(BlogPosting|Article|NewsArticle)"/;
@@ -28,15 +27,11 @@ export const blogSchemaSpokes: Check = {
   appliesTo: (repo) => repo.hasNext,
   run(repo): Finding[] {
     const findings: Finding[] = [];
-    const pages = globbySync(["app/**/page.{tsx,jsx,ts,js}"], {
-      cwd: repo.path,
-      gitignore: true,
-    });
-    for (const page of pages) {
+    for (const page of appPageFiles(repo.path)) {
       const content = readFileSafe(join(repo.path, page));
       if (!content) continue;
       if (!hasArticleSchema(content)) continue;
-      const mid = page.replace(/^app\//, "").replace(/\/?page\.[a-z]+$/, "");
+      const mid = routePath(page);
       if (isBlogRoute(mid)) continue;
       findings.push({
         checkId: "blog-schema-spokes",
