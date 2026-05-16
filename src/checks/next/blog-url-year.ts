@@ -3,12 +3,9 @@
  * age the content and force redirects when posts are refreshed.
  */
 
-import { directories } from "../lib.js";
+import { directories, BLOG_SEGMENTS } from "../lib.js";
 import type { Check, Finding } from "../../types.js";
 
-const BLOG_SEGMENTS = new Set([
-  "blog", "insights", "articles", "news", "guides", "resources", "posts",
-]);
 const YEAR = /^20\d\d$/;
 
 /** Directory paths whose last segment is a year under a blog-ish ancestor. */
@@ -20,7 +17,7 @@ export function yearSegmentsInBlogPaths(dirRelPaths: string[]): string[] {
     const last = segs[segs.length - 1];
     if (!YEAR.test(last)) continue;
     const ancestors = segs.slice(0, -1);
-    if (ancestors.some((s) => BLOG_SEGMENTS.has(s.toLowerCase()))) {
+    if (ancestors.some((s) => BLOG_SEGMENTS.includes(s.toLowerCase()))) {
       hits.push(dir);
     }
   }

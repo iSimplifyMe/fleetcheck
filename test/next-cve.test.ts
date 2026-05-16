@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { assessNextCve, nextCve } from "../src/checks/next/next-cve.js";
+import {
+  assessNextCve,
+  nextCve,
+  parseNextFromPnpmLock,
+} from "../src/checks/next/next-cve.js";
 import type { RepoContext } from "../src/types.js";
 
 describe("assessNextCve", () => {
@@ -28,6 +32,20 @@ describe("assessNextCve", () => {
 
   it("returns unknown for an unresolvable spec", () => {
     expect(assessNextCve("latest").status).toBe("unknown");
+  });
+});
+
+describe("parseNextFromPnpmLock", () => {
+  it("extracts the resolved next version", () => {
+    const lock =
+      "packages:\n\n  next@16.2.5:\n    resolution: {}\n" +
+      "  eslint-config-next@16.1.0:\n    resolution: {}\n";
+    expect(parseNextFromPnpmLock(lock)).toBe("16.2.5");
+  });
+
+  it("does not match next-prefixed package names", () => {
+    const lock = "packages:\n\n  eslint-config-next@16.1.0:\n    resolution: {}\n";
+    expect(parseNextFromPnpmLock(lock)).toBeUndefined();
   });
 });
 

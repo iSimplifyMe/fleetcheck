@@ -8,7 +8,7 @@ import { join } from "node:path";
 import * as semver from "semver";
 import type { Check, Finding, RepoContext } from "../../types.js";
 
-const PATCHED = "16.2.5";
+export const PATCHED = "16.2.5";
 const CVE = "CVE-2026-44578";
 
 export interface NextCveAssessment {
@@ -89,18 +89,34 @@ export function assessNextCve(spec: string, resolved?: string): NextCveAssessmen
   };
 }
 
-/** Read the resolved `next` version from a package-lock.json, if present. */
-function resolvedNextFromLockfile(repoPath: string): string | undefined {
-  const lockPath = join(repoPath, "package-lock.json");
-  if (!existsSync(lockPath)) return undefined;
-  try {
-    const lock = JSON.parse(readFileSync(lockPath, "utf8")) as {
-      packages?: Record<string, { version?: string }>;
-    };
-    return lock.packages?.["node_modules/next"]?.version;
-  } catch {
-    return undefined;
+/** Resolve the `next` version from a pnpm-lock.yaml body (the `next@x.y.z` key). */
+export function parseNextFromPnpmLock(text: string): string | undefined {
+  return text.match(/^\s+next@(\d+\.\d+\.\d+)[:(]/m)?.[1];
+}
+
+/** Read the resolved `next` version from a lockfile (npm or pnpm), if present. */
+export function resolvedNextFromLockfile(repoPath: string): string | undefined {
+  const npmLock = join(repoPath, "package-lock.json");
+  if (existsSync(npmLock)) {
+    try {
+      const lock = JSON.parse(readFileSync(npmLock, "utf8")) as {
+        packages?: Record<string, { version?: string }>;
+      };
+      const version = lock.packages?.["node_modules/next"]?.version;
+      if (version) return version;
+    } catch {
+      /* fall through to other lockfiles */
+    }
   }
+  const pnpmLock = join(repoPath, "pnpm-lock.yaml");
+  if (existsSync(pnpmLock)) {
+    try {
+      return parseNextFromPnpmLock(readFileSync(pnpmLock, "utf8"));
+    } catch {
+      /* no resolution available */
+    }
+  }
+  return undefined;
 }
 
 function declaredNext(repo: RepoContext): string | undefined {

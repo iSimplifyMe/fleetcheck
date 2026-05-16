@@ -62,8 +62,7 @@ catches per-check errors so one failure doesn't abort the repo scan.
 
 | id | severity | detection |
 |----|----------|-----------|
-| `dependency-audit` | security/warning/info | `npm audit --json` parsed; plus explicit `next` version check vs CVE-2026-44578 (`<16.2.5` -> SECURITY). Network; graceful-degrade on failure. |
-| `secret-scan` | security | regex over `git ls-files` tracked files: `AKIA...`, private-key blocks, `gho_/ghp_`, `cfut_`, `sk_live_`. |
+| `secret-scan` | security | regex over non-ignored files: `AKIA...`, private-key blocks, `gho_/ghp_`, `cfut_`, `sk_live_`, Slack tokens. |
 | `stale-aws-creds` | warning | recent deploy-workflow runs via `gh run list`; failures matching `SecurityToken`/`InvalidClientTokenId`/`ExpiredToken`. Network; skippable. |
 | `worktrees-gitignore` | warning | `.worktrees/` absent from `.gitignore`. **Fixable.** |
 
@@ -127,3 +126,18 @@ commit, `gh pr create`. **Never merged. Never deployed.** Structural findings
 - fleetcheck itself is built on `main` directly: brand-new repo, no parallel
   sessions, nothing to protect — the worktree rule targets collision-prone
   existing repos.
+
+## Build deltas (2026-05-16)
+
+What shipped differs from the catalog above in three places:
+
+- **`dependency-audit` was split, not built as one check.** The CVE-2026-44578
+  portion became its own Next.js check, `next-cve` (lockfile- or range-based
+  version assessment). Full `npm audit` integration is deferred — see README
+  "Known gaps".
+- **`aeo-requirements` ships 3 elements, not 5.** It checks h1 / AtomicAnswer /
+  FAQ schema. `FAQAccordion` (redundant with FAQ schema) and `BreadcrumbList`
+  (too false-positive-prone — breadcrumbs usually live in a shared layout) were
+  dropped. It reports one `info`-level per-repo summary, not per-page warnings,
+  to keep the matrix readable.
+- **11 checks shipped**, not 12 (the catalog count assumed `dependency-audit`).

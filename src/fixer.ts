@@ -10,8 +10,12 @@ import { join } from "node:path";
 import type { ScanResult } from "./types.js";
 import { bumpNextInPackageJson } from "./fixers/next-cve-bump.js";
 import { addWorktreesToGitignore } from "./fixers/worktrees-gitignore-fix.js";
+import {
+  PATCHED,
+  assessNextCve,
+  resolvedNextFromLockfile,
+} from "./checks/next/next-cve.js";
 
-export const PATCHED_NEXT = "16.2.5";
 const FIX_BRANCH = "fleetcheck/safe-fixes";
 const COAUTHOR =
   "Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>";
@@ -27,6 +31,8 @@ export interface FixPlan {
 export interface FixResult {
   repo: string;
   prUrl?: string;
+  /** set when the repo needed no change (e.g. base branch already patched) */
+  note?: string;
   error?: string;
 }
 
@@ -73,6 +79,14 @@ function git(repoPath: string, args: string[]): string {
   });
 }
 
+function tryGit(repoPath: string, args: string[]): void {
+  try {
+    git(repoPath, args);
+  } catch {
+    /* best effort */
+  }
+}
+
 function defaultBranch(repoPath: string): string {
   try {
     const ref = git(repoPath, [
@@ -86,6 +100,13 @@ function defaultBranch(repoPath: string): string {
   }
 }
 
+/** Remove any worktree/branch left by a prior interrupted run. */
+function cleanStaleFixState(repoPath: string, worktree: string): void {
+  tryGit(repoPath, ["worktree", "remove", "--force", worktree]);
+  tryGit(repoPath, ["worktree", "prune"]);
+  tryGit(repoPath, ["branch", "-D", FIX_BRANCH]);
+}
+
 function commitMessage(applied: string[]): string {
   return (
     `fleetcheck: safe fixes (${applied.join("; ")})\n\n` +
@@ -94,15 +115,15 @@ function commitMessage(applied: string[]): string {
   );
 }
 
-function prTitle(plan: FixPlan): string {
-  if (plan.nextBump && plan.gitignoreFix) {
+function prTitle(appliedNext: boolean, appliedGitignore: boolean): string {
+  if (appliedNext && appliedGitignore) {
     return "fleetcheck: Next.js CVE patch + .worktrees gitignore";
   }
-  if (plan.nextBump) return "fleetcheck: bump Next.js to patch CVE-2026-44578";
+  if (appliedNext) return "fleetcheck: bump Next.js to patch CVE-2026-44578";
   return "fleetcheck: ignore .worktrees/ in .gitignore";
 }
 
-function prBody(plan: FixPlan, applied: string[], base: string): string {
+function prBody(appliedNext: boolean, applied: string[], base: string): string {
   const lines = [
     "Automated **safe-class** fixes from " +
       "[fleetcheck](https://github.com/iSimplifyMe/fleetcheck):",
@@ -111,11 +132,11 @@ function prBody(plan: FixPlan, applied: string[], base: string): string {
     "",
     `Base: \`${base}\`.`,
   ];
-  if (plan.nextBump) {
+  if (appliedNext) {
     lines.push(
       "",
       "⚠️ **Lockfile not updated.** `package.json` now requests " +
-        `\`next@^${PATCHED_NEXT}\` (patches CVE-2026-44578 — SSRF, CVSS 8.6). ` +
+        `\`next@^${PATCHED}\` (patches CVE-2026-44578 — SSRF, CVSS 8.6). ` +
         "Run `npm install` / `pnpm install` and commit the lockfile before merge.",
     );
   }
@@ -128,6 +149,7 @@ export function applyFix(plan: FixPlan): FixResult {
   const base = defaultBranch(plan.path);
   const worktree = join(plan.path, ".worktrees", "fleetcheck-safe-fixes");
 
+  cleanStaleFixState(plan.path, worktree);
   try {
     git(plan.path, ["fetch", "origin", base, "--quiet"]);
     git(plan.path, [
@@ -144,17 +166,29 @@ export function applyFix(plan: FixPlan): FixResult {
 
   try {
     const applied: string[] = [];
+    let appliedNext = false;
+    let appliedGitignore = false;
 
     if (plan.nextBump) {
       const pkgPath = join(worktree, "package.json");
       if (existsSync(pkgPath)) {
-        const bumped = bumpNextInPackageJson(
-          readFileSync(pkgPath, "utf8"),
-          PATCHED_NEXT,
-        );
-        if (bumped) {
-          writeFileSync(pkgPath, bumped);
-          applied.push(`bump \`next\` to \`^${PATCHED_NEXT}\` (CVE-2026-44578)`);
+        const pkgText = readFileSync(pkgPath, "utf8");
+        const spec = pkgText.match(/"next"\s*:\s*"([^"]+)"/)?.[1];
+        // Re-assess against the base branch: the scan may have read a stale
+        // local branch where `next` was older than the deployed default.
+        if (spec) {
+          const assessment = assessNextCve(
+            spec,
+            resolvedNextFromLockfile(worktree),
+          );
+          if (assessment.status !== "patched") {
+            const bumped = bumpNextInPackageJson(pkgText, PATCHED);
+            if (bumped && bumped !== pkgText) {
+              writeFileSync(pkgPath, bumped);
+              applied.push(`bump \`next\` to \`^${PATCHED}\` (CVE-2026-44578)`);
+              appliedNext = true;
+            }
+          }
         }
       }
     }
@@ -162,12 +196,19 @@ export function applyFix(plan: FixPlan): FixResult {
     if (plan.gitignoreFix) {
       const giPath = join(worktree, ".gitignore");
       const current = existsSync(giPath) ? readFileSync(giPath, "utf8") : "";
-      writeFileSync(giPath, addWorktreesToGitignore(current));
-      applied.push("add `.worktrees/` to `.gitignore`");
+      const updated = addWorktreesToGitignore(current);
+      if (updated !== current) {
+        writeFileSync(giPath, updated);
+        applied.push("add `.worktrees/` to `.gitignore`");
+        appliedGitignore = true;
+      }
     }
 
     if (applied.length === 0) {
-      return { repo: plan.repo, error: "no changes produced" };
+      return {
+        repo: plan.repo,
+        note: `no changes needed — base \`${base}\` is already up to date`,
+      };
     }
 
     git(worktree, ["add", "-A"]);
@@ -181,8 +222,8 @@ export function applyFix(plan: FixPlan): FixResult {
         "--repo", plan.slug,
         "--base", base,
         "--head", FIX_BRANCH,
-        "--title", prTitle(plan),
-        "--body", prBody(plan, applied, base),
+        "--title", prTitle(appliedNext, appliedGitignore),
+        "--body", prBody(appliedNext, applied, base),
       ],
       { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
     ).trim();
@@ -191,10 +232,6 @@ export function applyFix(plan: FixPlan): FixResult {
   } catch (err) {
     return { repo: plan.repo, error: errMessage(err) };
   } finally {
-    try {
-      git(plan.path, ["worktree", "remove", worktree, "--force"]);
-    } catch {
-      /* worktree left in place; not fatal */
-    }
+    tryGit(plan.path, ["worktree", "remove", "--force", worktree]);
   }
 }

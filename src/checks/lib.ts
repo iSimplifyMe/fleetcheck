@@ -80,3 +80,14 @@ export function routePath(pageRelPath: string): string {
     .replace(/^app\//, "")
     .replace(/\/?page\.[a-z]+$/, "");
 }
+
+/** Route segments treated as blog/content paths by the blog-* checks. */
+export const BLOG_SEGMENTS = [
+  "blog",
+  "insights",
+  "articles",
+  "news",
+  "guides",
+  "resources",
+  "posts",
+];

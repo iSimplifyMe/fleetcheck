@@ -5,11 +5,10 @@
  */
 
 import { join } from "node:path";
-import { readFileSafe, appPageFiles, routePath } from "../lib.js";
+import { readFileSafe, appPageFiles, routePath, BLOG_SEGMENTS } from "../lib.js";
 import type { Check, Finding } from "../../types.js";
 
 const ARTICLE_SCHEMA = /"@type"\s*:\s*"(BlogPosting|Article|NewsArticle)"/;
-const BLOG_SEGMENTS = ["blog", "insights", "articles", "news", "posts"];
 
 export function hasArticleSchema(content: string): boolean {
   return ARTICLE_SCHEMA.test(content);

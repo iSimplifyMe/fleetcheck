@@ -82,7 +82,14 @@ function cmdReport(args: string[]): void {
     options: { out: { type: "string", default: "reports" } },
   });
   const outDir = resolve(values.out as string);
-  const scan = JSON.parse(readFileSync(join(outDir, "scan.json"), "utf8")) as ScanResult;
+  let scan: ScanResult;
+  try {
+    scan = JSON.parse(readFileSync(join(outDir, "scan.json"), "utf8")) as ScanResult;
+  } catch {
+    log(`No scan found at ${join(outDir, "scan.json")} — run \`fleetcheck scan\` first.`);
+    process.exitCode = 1;
+    return;
+  }
   writeMatrix(scan, outDir);
   process.stdout.write(renderMatrix(scan) + "\n");
 }
@@ -138,7 +145,14 @@ function cmdFix(args: string[]): void {
   });
 
   const scanPath = join(resolve(values.out as string), "scan.json");
-  const scan = JSON.parse(readFileSync(scanPath, "utf8")) as ScanResult;
+  let scan: ScanResult;
+  try {
+    scan = JSON.parse(readFileSync(scanPath, "utf8")) as ScanResult;
+  } catch {
+    log(`No scan found at ${scanPath} — run \`fleetcheck scan\` first.`);
+    process.exitCode = 1;
+    return;
+  }
   const config = loadFleetConfig(values.config as string);
   const root = values.root as string;
   const byName = new Map(config.repos.map((r) => [r.name, r]));
@@ -146,7 +160,10 @@ function cmdFix(args: string[]): void {
   const plans = planFixes(scan, (repoName) => {
     const entry = byName.get(repoName);
     if (!entry?.slug) return undefined;
-    return { path: entry.path ?? join(root, entry.name), slug: entry.slug };
+    return {
+      path: resolve(entry.path ?? join(root, entry.name)),
+      slug: entry.slug,
+    };
   });
 
   if (plans.length === 0) {
@@ -173,11 +190,9 @@ function cmdFix(args: string[]): void {
   log("\nOpening PRs — worktree branches; never merged, never deployed.\n");
   for (const plan of plans) {
     const result = applyFix(plan);
-    log(
-      result.prUrl
-        ? `  ok   ${result.repo} — ${result.prUrl}`
-        : `  FAIL ${result.repo} — ${result.error}`,
-    );
+    if (result.prUrl) log(`  ok   ${result.repo} — ${result.prUrl}`);
+    else if (result.note) log(`  skip ${result.repo} — ${result.note}`);
+    else log(`  FAIL ${result.repo} — ${result.error}`);
   }
 }
 
