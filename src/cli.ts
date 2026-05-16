@@ -27,6 +27,7 @@ async function cmdScan(args: string[]): Promise<void> {
     args,
     options: {
       config: { type: "string", default: "fleet.config.json" },
+      root: { type: "string", default: process.cwd() },
       repo: { type: "string" },
       out: { type: "string", default: "reports" },
       "fail-on": { type: "string" },
@@ -43,10 +44,14 @@ async function cmdScan(args: string[]): Promise<void> {
     return;
   }
 
-  log(`fleetcheck: scanning ${entries.length} repo(s) with ${allChecks.length} check(s)`);
+  const root = values.root as string;
+  log(
+    `fleetcheck: scanning ${entries.length} repo(s) with ${allChecks.length} check(s) ` +
+      `under ${root}`,
+  );
   const results = [];
   for (const entry of entries) {
-    const ctx = classifyRepo(entry);
+    const ctx = classifyRepo(entry, root);
     const result = await runChecks(ctx, allChecks);
     log(`  ${entry.name} [${ctx.kind}] — ${summarize(result.findings)}`);
     results.push(result);
@@ -86,6 +91,8 @@ function usage(): void {
   log("");
   log("  scan     --config <path> [--repo <name>] [--out <dir>] [--fail-on <severity>]");
   log("  report   [--out <dir>]");
+  log("");
+  log("  --root defaults to the current directory; repo path = <root>/<name>.");
 }
 
 const [cmd, ...rest] = process.argv.slice(2);

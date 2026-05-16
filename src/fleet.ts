@@ -6,12 +6,12 @@ import type { PackageJson, RepoContext, RepoKind } from "./types.js";
 
 export interface FleetRepoEntry {
   name: string;
-  /** local working-tree path (absolute or ~-relative-resolved by caller) */
-  path: string;
   /** org/repo slug for gh operations */
   slug?: string;
   /** skip this repo entirely */
   skip?: boolean;
+  /** explicit working-tree path; defaults to <root>/<name> */
+  path?: string;
 }
 
 export interface FleetConfig {
@@ -33,9 +33,9 @@ export function hasDependency(pkg: PackageJson | undefined, name: string): boole
   return Boolean(pkg.dependencies?.[name] ?? pkg.devDependencies?.[name]);
 }
 
-/** Build a RepoContext from a fleet config entry. */
-export function classifyRepo(entry: FleetRepoEntry): RepoContext {
-  const path = resolve(entry.path);
+/** Build a RepoContext from a fleet config entry, resolving its path under root. */
+export function classifyRepo(entry: FleetRepoEntry, root: string): RepoContext {
+  const path = entry.path ? resolve(entry.path) : resolve(root, entry.name);
   const pkg = loadPackageJson(path);
   const hasNext = hasDependency(pkg, "next");
   const kind: RepoKind = hasNext ? "next" : "other";
