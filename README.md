@@ -102,6 +102,12 @@ produces too many false positives to be useful:
 `dependency-audit` (full `npm audit` integration beyond the Next.js CVE) is a
 planned enhancement.
 
+fleetcheck scans each repo's **working tree as-is**, on whatever branch it is
+checked out on — results can differ from the deployed default branch. The first
+fleet scan over-reported `next-cve` because several repos were on stale feature
+branches. Scan clean default-branch checkouts for a deployed-state audit; a
+`--ref` flag is a planned enhancement.
+
 ## Adding a check
 
 A check is a module exporting a `Check`: `{ id, title, severity, appliesTo,
