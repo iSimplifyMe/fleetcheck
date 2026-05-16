@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/** fleetcheck CLI — scan (fleet), check (single repo), report. fix lands in phase 8. */
+/** fleetcheck CLI — scan (fleet), check (single repo), report, fix (safe-class PRs). */
 
 import { parseArgs } from "node:util";
 import { resolve, join, basename } from "node:path";
@@ -9,6 +9,7 @@ import { runChecks } from "./runner.js";
 import { allChecks } from "./checks/index.js";
 import { writeJsonReports } from "./reporters/json.js";
 import { renderMatrix, writeMatrix } from "./reporters/markdown.js";
+import { planFixes, applyFix } from "./fixer.js";
 import type { ScanResult, Severity, Finding } from "./types.js";
 
 function log(msg: string): void {
@@ -125,12 +126,68 @@ async function cmdCheck(args: string[]): Promise<void> {
   }
 }
 
+function cmdFix(args: string[]): void {
+  const { values } = parseArgs({
+    args,
+    options: {
+      out: { type: "string", default: "reports" },
+      config: { type: "string", default: "fleet.config.json" },
+      root: { type: "string", default: process.cwd() },
+      execute: { type: "boolean", default: false },
+    },
+  });
+
+  const scanPath = join(resolve(values.out as string), "scan.json");
+  const scan = JSON.parse(readFileSync(scanPath, "utf8")) as ScanResult;
+  const config = loadFleetConfig(values.config as string);
+  const root = values.root as string;
+  const byName = new Map(config.repos.map((r) => [r.name, r]));
+
+  const plans = planFixes(scan, (repoName) => {
+    const entry = byName.get(repoName);
+    if (!entry?.slug) return undefined;
+    return { path: entry.path ?? join(root, entry.name), slug: entry.slug };
+  });
+
+  if (plans.length === 0) {
+    log("No safe-class fixes available.");
+    return;
+  }
+
+  log(`fleetcheck fix — ${plans.length} repo(s) with safe-class fixes:`);
+  for (const p of plans) {
+    const what = [
+      p.nextBump ? "next-cve bump" : null,
+      p.gitignoreFix ? ".worktrees gitignore" : null,
+    ]
+      .filter(Boolean)
+      .join(", ");
+    log(`  ${p.repo} — ${what}`);
+  }
+
+  if (!values.execute) {
+    log("\nDry run. Re-run with --execute to open PRs (worktree branches, never merged).");
+    return;
+  }
+
+  log("\nOpening PRs — worktree branches; never merged, never deployed.\n");
+  for (const plan of plans) {
+    const result = applyFix(plan);
+    log(
+      result.prUrl
+        ? `  ok   ${result.repo} — ${result.prUrl}`
+        : `  FAIL ${result.repo} — ${result.error}`,
+    );
+  }
+}
+
 function usage(): void {
   log("usage: fleetcheck <command> [options]");
   log("");
   log("  scan     --config <path> --root <dir> [--repo <name>] [--out <dir>] [--fail-on <sev>]");
   log("  check    [path] [--fail-on <severity>] [--json]   — single repo, for CI");
   log("  report   [--out <dir>]");
+  log("  fix      [--execute]   — open safe-class fix PRs from the last scan");
   log("");
   log("  scan --root defaults to the current directory; repo path = <root>/<name>.");
 }
@@ -145,6 +202,9 @@ switch (cmd) {
     break;
   case "report":
     cmdReport(rest);
+    break;
+  case "fix":
+    cmdFix(rest);
     break;
   case undefined:
   case "help":
