@@ -1,0 +1,35 @@
+name: "fleetcheck"
+description: "Lint a repo against iSimplifyMe fleet rules and security checks."
+branding:
+  icon: "shield"
+  color: "purple"
+
+inputs:
+  path:
+    description: "Path within the workspace to check."
+    required: false
+    default: "."
+  fail-on:
+    description: "Minimum severity that fails the build: security | error | warning | info."
+    required: false
+    default: "error"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Node
+      uses: actions/setup-node@v4
+      with:
+        node-version: "20"
+
+    - name: Install fleetcheck
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: npm ci
+
+    - name: Run fleetcheck
+      shell: bash
+      run: >
+        "${{ github.action_path }}/node_modules/.bin/tsx"
+        "${{ github.action_path }}/src/cli.ts"
+        check "${{ inputs.path }}" --fail-on "${{ inputs.fail-on }}"

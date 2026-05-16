@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-/** fleetcheck CLI — `scan` and `report` subcommands. `fix` is added in build phase 8. */
+/** fleetcheck CLI — scan (fleet), check (single repo), report. fix lands in phase 8. */
 
 import { parseArgs } from "node:util";
-import { resolve, join } from "node:path";
+import { resolve, join, basename } from "node:path";
 import { readFileSync } from "node:fs";
 import { loadFleetConfig, classifyRepo } from "./fleet.js";
 import { runChecks } from "./runner.js";
@@ -86,19 +86,62 @@ function cmdReport(args: string[]): void {
   process.stdout.write(renderMatrix(scan) + "\n");
 }
 
+async function cmdCheck(args: string[]): Promise<void> {
+  const { values, positionals } = parseArgs({
+    args,
+    allowPositionals: true,
+    options: {
+      "fail-on": { type: "string", default: "error" },
+      json: { type: "boolean", default: false },
+    },
+  });
+  const target = resolve(positionals[0] ?? process.cwd());
+  const ctx = classifyRepo({ name: basename(target), path: target }, target);
+  const result = await runChecks(ctx, allChecks);
+  const order: Severity[] = ["security", "error", "warning", "info"];
+
+  if (values.json) {
+    process.stdout.write(JSON.stringify(result, null, 2) + "\n");
+  } else {
+    log(`fleetcheck: ${ctx.name} [${ctx.kind}] — ${summarize(result.findings)}`);
+    const sorted = [...result.findings].sort(
+      (a, b) => order.indexOf(a.severity) - order.indexOf(b.severity),
+    );
+    for (const f of sorted) {
+      const loc = f.file ? ` ${f.file}${f.line ? ":" + f.line : ""}` : "";
+      log(`  [${f.severity}] ${f.checkId}${loc} — ${f.message}`);
+    }
+    for (const [id, err] of Object.entries(result.errors)) {
+      log(`  [check-error] ${id}: ${err}`);
+    }
+  }
+
+  const threshold = order.indexOf(values["fail-on"] as Severity);
+  if (
+    threshold >= 0 &&
+    result.findings.some((f) => order.indexOf(f.severity) <= threshold)
+  ) {
+    process.exitCode = 2;
+  }
+}
+
 function usage(): void {
   log("usage: fleetcheck <command> [options]");
   log("");
-  log("  scan     --config <path> [--repo <name>] [--out <dir>] [--fail-on <severity>]");
+  log("  scan     --config <path> --root <dir> [--repo <name>] [--out <dir>] [--fail-on <sev>]");
+  log("  check    [path] [--fail-on <severity>] [--json]   — single repo, for CI");
   log("  report   [--out <dir>]");
   log("");
-  log("  --root defaults to the current directory; repo path = <root>/<name>.");
+  log("  scan --root defaults to the current directory; repo path = <root>/<name>.");
 }
 
 const [cmd, ...rest] = process.argv.slice(2);
 switch (cmd) {
   case "scan":
     await cmdScan(rest);
+    break;
+  case "check":
+    await cmdCheck(rest);
     break;
   case "report":
     cmdReport(rest);
