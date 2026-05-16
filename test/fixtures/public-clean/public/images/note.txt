@@ -1,0 +1,1 @@
+Asset placeholder so the public/images directory exists.

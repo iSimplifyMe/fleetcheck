@@ -10,6 +10,9 @@ import { dynamicParams } from "./next/dynamic-params.js";
 import { jsonldScript } from "./next/jsonld-script.js";
 import { blogUrlYear } from "./next/blog-url-year.js";
 import { ecaTemplateResidue } from "./next/eca-template-residue.js";
+import { publicDirCollision } from "./next/public-dir-collision.js";
+import { aeoRequirements } from "./next/aeo-requirements.js";
+import { blogSchemaSpokes } from "./next/blog-schema-spokes.js";
 
 // Universal checks apply to every repo.
 // next/ checks apply only when `next` is a dependency (enforced via Check.appliesTo).
@@ -25,4 +28,7 @@ export const allChecks: Check[] = [
   jsonldScript,
   blogUrlYear,
   ecaTemplateResidue,
+  publicDirCollision,
+  aeoRequirements,
+  blogSchemaSpokes,
 ];
