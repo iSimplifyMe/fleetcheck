@@ -1,0 +1,6 @@
+{
+  "name": "next-edge-og",
+  "dependencies": {
+    "next": "16.2.5"
+  }
+}
