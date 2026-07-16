@@ -1,6 +1,6 @@
 {
   "name": "fleetcheck",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "Fleet-wide linter for the iSimplifyMe Next.js/SST repo fleet — encodes known failure-mode rules and security checks.",

@@ -2,6 +2,16 @@
  * secret-scan — flag credentials committed to source. Scans non-ignored files
  * (globby honors .gitignore, so gitignored env files are skipped) for common
  * provider key shapes.
+ *
+ * Suppressions are value/shape-based, never path-based — a real credential in
+ * a test file must still fire (2026-07-16 fleet baseline: 6 false positives,
+ * all structurally fake values or doc-prose marker mentions):
+ *   - fixture tokens whose delimited segments spell it out (`xoxb-test-token`);
+ *   - private-key markers with the END marker on the same line and no room
+ *     for key material between (`"-----BEGIN PRIVATE KEY-----\nfake\n-----END…"`);
+ *   - private-key markers quoted as doc prose (followed by a backtick or `…`);
+ *   - an explicit escape: a `fleetcheck-ignore-next-line: <reason>` comment on
+ *     the previous line — the reason is REQUIRED or the directive is inert.
  */
 
 import { readFileSync, statSync } from "node:fs";
@@ -28,6 +38,49 @@ const SECRET_PATTERNS: SecretPattern[] = [
 
 /** Documented example/dummy keys that must never count as findings. */
 const ALLOWLIST = ["AKIAIOSFODNN7EXAMPLE", "AKIAIOSFODNN7EXAMPLEKEY"];
+
+/**
+ * Fixture-marker segments. Only applies to matched values whose charset
+ * allows `-`/`_` delimiters (Slack tokens) — AWS/Cloudflare/Stripe/GitHub
+ * key bodies are delimiter-free, so they can never be value-suppressed.
+ */
+const FAKE_SEGMENTS = new Set([
+  "test", "fake", "dummy", "example", "sample", "placeholder", "redacted",
+]);
+
+/** True when a delimited segment of the matched value marks it as a fixture. */
+export function isFixtureSecret(matched: string): boolean {
+  return matched
+    .split(/[-_]/)
+    .some((seg) => FAKE_SEGMENTS.has(seg.toLowerCase()));
+}
+
+const PK_BEGIN = /-----BEGIN (?:RSA |EC |OPENSSH |DSA |PGP )?PRIVATE KEY-----/;
+const PK_END = /-----END (?:RSA |EC |OPENSSH |DSA |PGP )?PRIVATE KEY-----/;
+
+/**
+ * True when a private-key BEGIN marker on this line cannot be a real key:
+ * either doc prose (marker immediately followed by a backtick or ellipsis),
+ * or the END marker sits on the same line with < 64 chars between — even an
+ * Ed25519 PEM body is far larger, so no real key material fits.
+ */
+export function isDocOrFixturePrivateKeyLine(line: string): boolean {
+  const begin = line.match(PK_BEGIN);
+  if (!begin || begin.index === undefined) return false;
+  const after = line.slice(begin.index + begin[0].length);
+  if (after.startsWith("`") || after.startsWith("...") || after.startsWith("…")) {
+    return true;
+  }
+  const end = after.match(PK_END);
+  return end !== null && end.index !== undefined && end.index < 64;
+}
+
+/**
+ * `fleetcheck-ignore-next-line: <reason>` suppresses secret-scan findings on
+ * the following line. The reason is required — without one the directive is
+ * inert and the finding still fires.
+ */
+const IGNORE_NEXT_LINE = /fleetcheck-ignore-next-line:?\s+\S/;
 
 const SKIP_EXT = new Set([
   ".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif", ".ico", ".svg",
@@ -95,8 +148,29 @@ export const secretScan: Check = {
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
         if (ALLOWLIST.some((a) => line.includes(a))) continue;
+        if (i > 0 && IGNORE_NEXT_LINE.test(lines[i - 1])) continue;
         for (const pattern of SECRET_PATTERNS) {
-          if (pattern.regex.test(line)) {
+          const global = new RegExp(
+            pattern.regex.source,
+            pattern.regex.flags.includes("g")
+              ? pattern.regex.flags
+              : pattern.regex.flags + "g",
+          );
+          // Suppress only if EVERY match on the line is structurally fake —
+          // a real token next to a fixture token must still fire.
+          let realMatch = false;
+          for (const m of line.matchAll(global)) {
+            if (isFixtureSecret(m[0])) continue;
+            if (
+              pattern.name === "private key block" &&
+              isDocOrFixturePrivateKeyLine(line)
+            ) {
+              continue;
+            }
+            realMatch = true;
+            break;
+          }
+          if (realMatch) {
             findings.push({
               checkId: "secret-scan",
               severity: "security",

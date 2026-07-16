@@ -1,6 +1,13 @@
 /**
- * next-cve — flag repos whose Next.js version is exposed to CVE-2026-44578
- * (SSRF, CVSS 8.6; patched in 16.2.5).
+ * next-cve — flag repos whose Next.js version is exposed to the May 2026
+ * Next.js advisory batch (published 2026-05-11).
+ *
+ * Floor history (verified against the GitHub advisory API, 2026-07-16):
+ *   - CVE-2026-44578 (SSRF via WebSocket upgrades, high) — patched in 16.2.5.
+ *   - CVE-2026-45109 (middleware/proxy bypass via segment paths, high;
+ *     GHSA-26hh-7cqf-hhc6) — patched in 16.2.6. This sets the current floor;
+ *     the fleet patched to 16.2.6 in May 2026.
+ * The 15.x backport line for the same batch is patched in 15.5.18.
  */
 
 import { existsSync, readFileSync } from "node:fs";
@@ -8,8 +15,8 @@ import { join } from "node:path";
 import * as semver from "semver";
 import type { Check, Finding, RepoContext } from "../../types.js";
 
-export const PATCHED = "16.2.5";
-const CVE = "CVE-2026-44578";
+export const PATCHED = "16.2.6";
+const CVE = "CVE-2026-45109";
 
 export interface NextCveAssessment {
   status: "patched" | "vulnerable" | "uncertain" | "unknown";

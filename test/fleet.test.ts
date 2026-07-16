@@ -27,4 +27,27 @@ describe("classifyRepo", () => {
     expect(ctx.kind).toBe("other");
     expect(ctx.hasNext).toBe(false);
   });
+
+  it("resolves a relative entry path under root", () => {
+    const ctx = classifyRepo({ name: "anitapatelmd", path: "wt-present" }, fixtures);
+    expect(ctx.path).toBe(resolve(fixtures, "wt-present"));
+  });
+
+  it("merges fleet-entry settings under a repo-local .fleetcheckrc.json (repo file wins)", () => {
+    const ctx = classifyRepo(
+      {
+        name: "ahpra-over-baseline",
+        settings: { "ahpra-schema-guard": { baseline: 99 }, "other-check": { on: true } },
+      },
+      fixtures,
+    );
+    // .fleetcheckrc.json in the fixture pins baseline: 1 — it wins.
+    expect(ctx.settings?.["ahpra-schema-guard"]).toEqual({ baseline: 1 });
+    expect(ctx.settings?.["other-check"]).toEqual({ on: true });
+  });
+
+  it("leaves settings undefined when neither source provides any", () => {
+    const ctx = classifyRepo({ name: "wt-missing" }, fixtures);
+    expect(ctx.settings).toBeUndefined();
+  });
 });

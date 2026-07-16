@@ -41,6 +41,12 @@ export interface RepoContext {
   packageJson?: PackageJson;
   /** org/repo slug for gh operations, if known */
   slug?: string;
+  /**
+   * Per-repo check settings, keyed by check id: the fleet.config.json entry's
+   * `settings` object merged under the repo's own `.fleetcheckrc.json`
+   * (the repo-local file wins).
+   */
+  settings?: Record<string, unknown>;
 }
 
 export interface Check {

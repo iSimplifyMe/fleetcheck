@@ -15,7 +15,15 @@ describe("assessNextCve", () => {
 
   it("treats a resolved or pinned version at/above the patch as patched", () => {
     expect(assessNextCve("^16.1.0", "16.4.2").status).toBe("patched");
-    expect(assessNextCve("16.2.5").status).toBe("patched");
+    expect(assessNextCve("16.2.6").status).toBe("patched");
+  });
+
+  it("treats 16.2.5 as vulnerable — the floor is 16.2.6 (CVE-2026-45109)", () => {
+    // 16.2.5 patched CVE-2026-44578 but not CVE-2026-45109 (middleware/proxy
+    // bypass, patched 16.2.6) — the floor refresh must not regress.
+    const a = assessNextCve("16.2.5", "16.2.5");
+    expect(a.status).toBe("vulnerable");
+    expect(a.fixable).toBe(true);
   });
 
   it("flags a range whose floor is below the patch as uncertain", () => {
@@ -70,7 +78,7 @@ describe("next-cve check", () => {
       path: "/tmp/fleetcheck-test-none",
       kind: "next",
       hasNext: true,
-      packageJson: { dependencies: { next: "16.2.5" } },
+      packageJson: { dependencies: { next: "16.2.6" } },
     };
     expect(await nextCve.run(repo)).toHaveLength(0);
   });

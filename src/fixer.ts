@@ -119,7 +119,7 @@ function prTitle(appliedNext: boolean, appliedGitignore: boolean): string {
   if (appliedNext && appliedGitignore) {
     return "fleetcheck: Next.js CVE patch + .worktrees gitignore";
   }
-  if (appliedNext) return "fleetcheck: bump Next.js to patch CVE-2026-44578";
+  if (appliedNext) return "fleetcheck: bump Next.js to patch CVE-2026-45109";
   return "fleetcheck: ignore .worktrees/ in .gitignore";
 }
 
@@ -136,7 +136,9 @@ function prBody(appliedNext: boolean, applied: string[], base: string): string {
     lines.push(
       "",
       "⚠️ **Lockfile not updated.** `package.json` now requests " +
-        `\`next@^${PATCHED}\` (patches CVE-2026-44578 — SSRF, CVSS 8.6). ` +
+        `\`next@^${PATCHED}\` (patches the May 2026 Next.js advisory batch, ` +
+        "including CVE-2026-45109 — middleware/proxy bypass, high — and " +
+        "CVE-2026-44578 — SSRF). " +
         "Run `npm install` / `pnpm install` and commit the lockfile before merge.",
     );
   }
@@ -185,7 +187,7 @@ export function applyFix(plan: FixPlan): FixResult {
             const bumped = bumpNextInPackageJson(pkgText, PATCHED);
             if (bumped && bumped !== pkgText) {
               writeFileSync(pkgPath, bumped);
-              applied.push(`bump \`next\` to \`^${PATCHED}\` (CVE-2026-44578)`);
+              applied.push(`bump \`next\` to \`^${PATCHED}\` (CVE-2026-45109)`);
               appliedNext = true;
             }
           }

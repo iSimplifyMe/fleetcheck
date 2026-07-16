@@ -18,7 +18,10 @@ Each check declares whether it applies to every repo or only to Next.js repos
 | Check | Scope | Severity | Catches |
 |-------|-------|----------|---------|
 | `secret-scan` | all | security | AWS / GitHub / Stripe / Cloudflare / Slack credentials committed to source |
-| `next-cve` | next | security | Next.js versions exposed to CVE-2026-44578 (SSRF; patched in 16.2.5) |
+| `sst-secret-fallback` | all (sst) | security | app secrets in `sst.config.ts` read as `process.env.X \|\| ""` / `?? ""` or hardcoded, instead of `sst.Secret` (allowlisted: infra vars `AWS_*` / `CLOUDFLARE_*` / `CF_ZONE_*` / `GITHUB_*`, public-by-design `NEXT_PUBLIC_*` / `*_PUBLISHABLE_KEY` / `*_URL`, Secrets Manager references `*_SECRET_ID` / `*_SECRET_ARN` / `*_SECRET_NAME`, and `arn:aws:…` / SSH-public-key values) |
+| `ahpra-schema-guard` | listed repos | security | new `Review` / `AggregateRating` schema on AU medical sites beyond the pinned per-repo baseline (AHPRA National Law s133) |
+| `next-cve` | next | security | Next.js versions below 16.2.6 — the May 2026 advisory batch floor (CVE-2026-45109 middleware/proxy bypass; includes CVE-2026-44578 SSRF, patched 16.2.5) |
+| `opennext-version-pin` | next | error | Next 16+ deployed via `sst.aws.Nextjs` without an `openNextVersion` pin ≥ 4.0.2 (the `/_next/image` 500 incident) |
 | `stale-aws-creds` | all | warning | deploy workflows whose recent runs failed on AWS credential errors |
 | `worktrees-gitignore` | all | warning | `.gitignore` missing `.worktrees/` |
 | `edge-runtime-og` | next | error | files that import `next/og` and declare the edge runtime |
@@ -64,12 +67,16 @@ Add to any repo's CI:
 
 ```yaml
 - uses: actions/checkout@v4
-- uses: iSimplifyMe/fleetcheck@main
+- uses: iSimplifyMe/fleetcheck@<full-commit-sha>   # pin to a SHA, not a branch
   with:
     fail-on: error   # security|error fail the build; warnings do not
 ```
 
 The action checks the current repo and exits non-zero at or above `fail-on`.
+
+**Pin the action to a full commit SHA**, not `@main` or a tag: branch and tag
+refs are mutable, so an unpinned reference runs whatever the ref points to at
+build time (supply-chain exposure). Bump the SHA deliberately when upgrading.
 
 ## fleet.config.json
 
@@ -83,7 +90,52 @@ The action checks the current repo and exits non-zero at or above `fail-on`.
 
 `name` is the working-tree directory under `--root`; `slug` is the GitHub
 `org/repo` (they differ for several repos). `slug` powers `stale-aws-creds`
-and the `fix` PR flow.
+and the `fix` PR flow. An optional `path` overrides the working-tree
+directory when it differs from `name` (relative paths resolve under
+`--root`, e.g. `anitapatelmd` → `anita-patel-md`).
+
+### Per-repo check settings
+
+A repo entry may carry a `settings` object, keyed by check id:
+
+```json
+{
+  "name": "signature-dentistry",
+  "slug": "iSimplifyMe/signature-dentistry",
+  "settings": { "ahpra-schema-guard": { "baseline": 1 } }
+}
+```
+
+A repo can also ship its own settings in a `.fleetcheckrc.json` at its root
+(same shape, `{ "<check-id>": { … } }`). The repo-local file wins over the
+fleet config entry — it is what the single-repo GitHub Action mode reads,
+since that mode never sees `fleet.config.json`.
+
+`ahpra-schema-guard.baseline` pins the approved count of existing
+`Review`/`AggregateRating` schema occurrences; anything above it fails.
+
+## secret-scan suppressions
+
+Suppressions are **value/shape-based, never path-based** — a real credential
+in a test file still fires. What is suppressed (calibrated on the 2026-07-16
+fleet baseline's six false positives):
+
+- fixture tokens whose delimited segments say so (`xoxb-test-token`;
+  segments: test/fake/dummy/example/sample/placeholder/redacted). AWS, Stripe,
+  Cloudflare, and GitHub key bodies contain no delimiters, so they can never
+  be value-suppressed;
+- private-key `-----BEGIN…-----` markers that provably hold no key: the END
+  marker on the same line with < 64 chars between (single-line test fixtures),
+  or the marker immediately followed by a backtick or ellipsis (doc prose);
+- an explicit escape for anything else:
+
+  ```
+  // fleetcheck-ignore-next-line: documented example token, rotated 2026-05-01
+  const example = "cfut_…";
+  ```
+
+  The reason after the directive is **required** — a bare
+  `fleetcheck-ignore-next-line` is inert and the finding still fires.
 
 ## Exit codes
 

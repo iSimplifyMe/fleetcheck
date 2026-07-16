@@ -4,7 +4,10 @@ import type { Check } from "../types.js";
 import { secretScan } from "./universal/secret-scan.js";
 import { staleAwsCreds } from "./universal/stale-aws-creds.js";
 import { worktreesGitignore } from "./universal/worktrees-gitignore.js";
+import { sstSecretFallback } from "./universal/sst-secret-fallback.js";
+import { ahpraSchemaGuard } from "./universal/ahpra-schema-guard.js";
 import { nextCve } from "./next/next-cve.js";
+import { opennextVersionPin } from "./next/opennext-version-pin.js";
 import { edgeRuntimeOg } from "./next/edge-runtime-og.js";
 import { dynamicParams } from "./next/dynamic-params.js";
 import { jsonldScript } from "./next/jsonld-script.js";
@@ -21,8 +24,11 @@ export const allChecks: Check[] = [
   secretScan,
   staleAwsCreds,
   worktreesGitignore,
+  sstSecretFallback,
+  ahpraSchemaGuard,
   // next.js / sst
   nextCve,
+  opennextVersionPin,
   edgeRuntimeOg,
   dynamicParams,
   jsonldScript,
