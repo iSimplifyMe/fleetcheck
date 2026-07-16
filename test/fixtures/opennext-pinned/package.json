@@ -1,0 +1,6 @@
+{
+  "name": "opennext-pinned",
+  "dependencies": {
+    "next": "16.2.10"
+  }
+}

@@ -10,8 +10,10 @@ export interface FleetRepoEntry {
   slug?: string;
   /** skip this repo entirely */
   skip?: boolean;
-  /** explicit working-tree path; defaults to <root>/<name> */
+  /** explicit working-tree path (relative paths resolve under --root); defaults to <root>/<name> */
   path?: string;
+  /** per-repo check settings, keyed by check id (e.g. ahpra-schema-guard) */
+  settings?: Record<string, unknown>;
 }
 
 export interface FleetConfig {
@@ -33,13 +35,38 @@ export function hasDependency(pkg: PackageJson | undefined, name: string): boole
   return Boolean(pkg.dependencies?.[name] ?? pkg.devDependencies?.[name]);
 }
 
+/**
+ * Per-repo settings from a `.fleetcheckrc.json` at the repo root, if present.
+ * Shape: `{ "<check-id>": { …check-specific options } }`.
+ */
+export function loadRepoSettings(repoPath: string): Record<string, unknown> | undefined {
+  const p = join(repoPath, ".fleetcheckrc.json");
+  if (!existsSync(p)) return undefined;
+  try {
+    return JSON.parse(readFileSync(p, "utf8")) as Record<string, unknown>;
+  } catch {
+    return undefined;
+  }
+}
+
 /** Build a RepoContext from a fleet config entry, resolving its path under root. */
 export function classifyRepo(entry: FleetRepoEntry, root: string): RepoContext {
-  const path = entry.path ? resolve(entry.path) : resolve(root, entry.name);
+  // A relative entry.path anchors at root (absolute paths win, per resolve()).
+  const path = entry.path ? resolve(root, entry.path) : resolve(root, entry.name);
   const pkg = loadPackageJson(path);
   const hasNext = hasDependency(pkg, "next");
   const kind: RepoKind = hasNext ? "next" : "other";
-  return { name: entry.name, path, kind, hasNext, packageJson: pkg, slug: entry.slug };
+  // The repo's own .fleetcheckrc.json wins over the fleet config entry.
+  const settings = { ...(entry.settings ?? {}), ...(loadRepoSettings(path) ?? {}) };
+  return {
+    name: entry.name,
+    path,
+    kind,
+    hasNext,
+    packageJson: pkg,
+    slug: entry.slug,
+    settings: Object.keys(settings).length > 0 ? settings : undefined,
+  };
 }
 
 export function loadFleetConfig(configPath: string): FleetConfig {
