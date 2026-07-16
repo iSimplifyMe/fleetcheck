@@ -23,6 +23,9 @@ export default {
         AUTH_TRUST_URL: process.env.AUTH_TRUST_URL || "http://localhost:3000",
         CONTACT_FORM_TO: process.env.CONTACT_FORM_TO || "contact@example.com",
         PLATFORM_FEE_PERCENT: process.env.PLATFORM_FEE_PERCENT || "0.4",
+        WHM_SECRET_ID: "ism-fleet/whm-token",
+        DB_CREDS_SECRET_ARN: "arn:aws:secretsmanager:us-east-1:123456789012:secret:prod/db-AbC123",
+        WP_SSH_HOST_KEY: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICDzvd3C8i6bE9Ss769auM112B9Ivk/ThpgJ7s0CUvDQ",
         CF_ZONE_ID: cfZone,
       },
     };

@@ -62,6 +62,44 @@ describe("sstSecretFallbackHits", () => {
       sstSecretFallbackHits('// NEVER use `process.env.X || ""` for app secrets.'),
     ).toEqual([]);
   });
+
+  it("passes Secrets Manager references and SSH public keys (migration-pilot FP classes)", () => {
+    // The three apex-portal origin/main shapes the pilot flagged as false positives:
+    const references = [
+      '          WHM_SECRET_ID: "ism-fleet/whm-token",',
+      '        SSH_SECRET_ID: "ism-fleet/fleet-runner-ssh-key",',
+      '        WP_SSH_HOST_KEY: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICDzvd3C8i6bE9Ss769auM112B9Ivk/ThpgJ7s0CUvDQ", // host pubkey',
+      // ARN values are identifiers regardless of the key name:
+      '        DB_CREDS_SECRET_ARN: "arn:aws:secretsmanager:us-east-1:123456789012:secret:prod/db-AbC123",',
+      '        AUTH_SECRET: "arn:aws:secretsmanager:us-east-1:123456789012:secret:auth-XyZ",',
+      // …and in fallback position too:
+      '        HOST_PUBKEY_PIN: process.env.HOST_PUBKEY_PIN || "ssh-rsa AAAAB3NzaC1yc2EAAAADAQAB",',
+    ];
+    for (const line of references) {
+      expect(sstSecretFallbackHits(line), line).toEqual([]);
+    }
+  });
+
+  it("still fires on real secret values next to the suppressed classes", () => {
+    // The April incident shape is unaffected by the pilot suppressions:
+    expect(
+      sstSecretFallbackHits('AUTH_SECRET: process.env.AUTH_SECRET || "",'),
+    ).toEqual([{ kind: "fallback", name: "AUTH_SECRET", empty: true }]);
+    // A PRIVATE key literal is a secret value — only PUBLIC key shapes pass:
+    expect(
+      sstSecretFallbackHits(
+        'WP_SSH_PRIVATE_KEY: "-----BEGIN OPENSSH PRIVATE KEY-----",',
+      ),
+    ).toEqual([{ kind: "literal", name: "WP_SSH_PRIVATE_KEY" }]);
+    // Raw key material without a public-key type prefix still fires:
+    expect(
+      sstSecretFallbackHits('GH_HOST_KEY: "AAAAC3NzaC1lZDI1NTE5AAAAICDzvd3C8i6b",'),
+    ).toEqual([{ kind: "literal", name: "GH_HOST_KEY" }]);
+    // A *_SECRET_ID-style suffix must be at the END to count as a reference:
+    expect(
+      sstSecretFallbackHits('SECRET_ID_TOKEN: process.env.SECRET_ID_TOKEN || "",'),
+    ).toEqual([{ kind: "fallback", name: "SECRET_ID_TOKEN", empty: true }]);
+  });
 });
 
 describe("allowlist and name heuristics", () => {
@@ -74,6 +112,9 @@ describe("allowlist and name heuristics", () => {
       "NEXT_PUBLIC_RECAPTCHA_SITE_KEY",
       "STRIPE_PUBLISHABLE_KEY",
       "NEXTAUTH_URL",
+      "WHM_SECRET_ID",
+      "SSH_SECRET_ARN",
+      "DB_CREDS_SECRET_NAME",
     ]) {
       expect(isAllowlistedEnvVar(name), name).toBe(true);
     }

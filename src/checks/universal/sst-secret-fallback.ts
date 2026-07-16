@@ -14,10 +14,19 @@
  *     (AWS_*, CLOUDFLARE_*, CF_ZONE_*, GITHUB_*) — per the fleet rule
  *     "shell env = AWS/CF infra creds only";
  *   - public-by-design values (NEXT_PUBLIC_*, *_PUBLISHABLE_KEY);
- *   - URLs (*_URL) — never secrets, even when the name contains AUTH.
+ *   - URLs (*_URL) — never secrets, even when the name contains AUTH;
+ *   - Secrets Manager references (*_SECRET_ID / *_SECRET_ARN / *_SECRET_NAME)
+ *     — the value names a secret to fetch at runtime, it isn't one.
+ *
+ * Value-based suppressions (sst.Secret migration pilot, 2026-07-16 — three
+ * apex-portal false positives): literals that are identifiers or public
+ * material by shape — `arn:aws:…` ARNs and `ssh-ed25519 …`/`ssh-rsa …`
+ * SSH PUBLIC keys (host-key pinning) — are never secret values.
  *
  * Only secret-looking names fire, so config defaults like
  * `CONTACT_FORM_TO || "contact@…"` or `PLATFORM_FEE_PERCENT || "0.4"` pass.
+ * The migration's intermediate state, `new sst.Secret("X", process.env.X)`
+ * with a bare placeholder (no `||`/`??` fallback), produces no findings.
  */
 
 import { existsSync } from "node:fs";
@@ -34,7 +43,18 @@ const ALLOWLIST: RegExp[] = [
   /^NEXT_PUBLIC_/,
   /_PUBLISHABLE_KEY$/,
   /_URL$/,
+  // Secrets Manager references: the value NAMES a secret (name or ARN) for a
+  // runtime GetSecretValue — it is not the secret itself (apex fleet-runner).
+  /_SECRET_(?:ID|ARN|NAME)$/,
 ];
+
+/**
+ * Literal values that are identifiers or public material by shape, never
+ * secret values: AWS ARNs and SSH PUBLIC keys (`ssh-ed25519 …` host-key
+ * pinning — public by definition).
+ */
+const NON_SECRET_VALUE =
+  /^(?:arn:aws:|ssh-(?:ed25519|rsa|dss)\s|ecdsa-sha2-|sk-ssh-|sk-ecdsa-)/;
 
 /** Name fragments that mark an env var as secret-like. */
 const SECRET_NAME = /SECRET|TOKEN|PASSW|PWD|KEY|AUTH|PRIVATE|CREDENTIAL|SIGNING|HMAC|DSN/;
@@ -70,12 +90,15 @@ export function sstSecretFallbackHits(line: string): SecretFallbackHit[] {
     const name = m[1];
     if (isAllowlistedEnvVar(name) || !looksSecret(name)) continue;
     const literal = m[2] ?? m[3] ?? m[4] ?? "";
+    if (NON_SECRET_VALUE.test(literal)) continue;
     hits.push({ kind: "fallback", name, empty: literal === "" });
   }
 
   for (const m of line.matchAll(DIRECT_LITERAL)) {
     const name = m[1];
     if (isAllowlistedEnvVar(name) || !looksSecret(name)) continue;
+    const literal = m[2].slice(1, -1); // strip the surrounding quotes
+    if (NON_SECRET_VALUE.test(literal)) continue;
     hits.push({ kind: "literal", name });
   }
 
