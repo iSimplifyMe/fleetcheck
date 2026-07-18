@@ -102,6 +102,46 @@ describe("sstSecretFallbackHits", () => {
   });
 });
 
+describe("placeholder-literal (wave-2): literals inside sst.Secret placeholders", () => {
+  it("flags a string literal passed as a secret-named Secret's placeholder (the trio's leaked-key shape)", () => {
+    expect(
+      sstSecretFallbackHits(
+        'const recaptchaSecret = new sst.Secret("RecaptchaSecretKey", "6LeeAbCdEfGhIjKlMnOpQrStUvWxYz123zU4C");',
+      ),
+    ).toEqual([{ kind: "placeholder-literal", name: "RecaptchaSecretKey", empty: false }]);
+    expect(
+      sstSecretFallbackHits("new sst.Secret('ApexLeadSecret', 'a1b2c3d4e5f60718')"),
+    ).toEqual([{ kind: "placeholder-literal", name: "ApexLeadSecret", empty: false }]);
+  });
+
+  it("flags an empty-string placeholder (silent-blank class)", () => {
+    expect(
+      sstSecretFallbackHits('new sst.Secret("BotWebhookSecret", "")'),
+    ).toEqual([{ kind: "placeholder-literal", name: "BotWebhookSecret", empty: true }]);
+  });
+
+  it("passes the sanctioned Phase-A and Phase-B shapes", () => {
+    const sanctioned = [
+      'const botWebhookSecret = new sst.Secret("BotWebhookSecret", process.env.BOT_WEBHOOK_SECRET);',
+      'const apexLeadSecret = new sst.Secret("ApexLeadSecret");',
+    ];
+    for (const line of sanctioned) {
+      expect(sstSecretFallbackHits(line), line).toEqual([]);
+    }
+  });
+
+  it("passes non-secret names, allowlisted shapes, and identifier values", () => {
+    const legit = [
+      'new sst.Secret("SiteTagline", "smiles ahead")',
+      'new sst.Secret("StripePublishableKey", "pk_live_abcdef")',
+      'new sst.Secret("AuthSecret", "arn:aws:secretsmanager:us-east-1:123456789012:secret:auth-XyZ")',
+    ];
+    for (const line of legit) {
+      expect(sstSecretFallbackHits(line), line).toEqual([]);
+    }
+  });
+});
+
 describe("allowlist and name heuristics", () => {
   it("allowlists infra and public prefixes/suffixes", () => {
     for (const name of [

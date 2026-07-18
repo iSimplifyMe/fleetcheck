@@ -27,6 +27,13 @@
  * `CONTACT_FORM_TO || "contact@…"` or `PLATFORM_FEE_PERCENT || "0.4"` pass.
  * The migration's intermediate state, `new sst.Secret("X", process.env.X)`
  * with a bare placeholder (no `||`/`??` fallback), produces no findings.
+ *
+ * Wave-2 (2026-07-18): a string LITERAL passed as an `sst.Secret` placeholder
+ * — `new sst.Secret("RecaptchaSecretKey", "6Lee…")` — commits the value to
+ * source while presenting as the sanctioned pattern; v0.2.0 scored it 0
+ * findings (how the adellion/endsights/homewealthmap leaked reCAPTCHA key
+ * hid). PascalCase Secret names are normalized to UPPER_SNAKE before the
+ * name/allowlist heuristics so `RecaptchaSecretKey` → `RECAPTCHA_SECRET_KEY`.
  */
 
 import { existsSync } from "node:fs";
@@ -75,10 +82,19 @@ const ENV_FALLBACK =
 const DIRECT_LITERAL =
   /(?:^\s*|[{,(]\s*)["']?([A-Z][A-Z0-9_]{2,})["']?\s*:\s*("[^"]{8,}"|'[^']{8,}')/g;
 
+/** `new sst.Secret("Name", "literal")` — a committed placeholder value. */
+const PLACEHOLDER_LITERAL =
+  /new\s+sst\.Secret\(\s*(?:"([A-Za-z][A-Za-z0-9]*)"|'([A-Za-z][A-Za-z0-9]*)')\s*,\s*(?:"([^"]*)"|'([^']*)'|`([^`$]*)`)\s*\)/g;
+
+/** `RecaptchaSecretKey` → `RECAPTCHA_SECRET_KEY` for the name heuristics. */
+function toEnvName(secretName: string): string {
+  return secretName.replace(/([a-z0-9])([A-Z])/g, "$1_$2").toUpperCase();
+}
+
 export interface SecretFallbackHit {
-  kind: "fallback" | "literal";
+  kind: "fallback" | "literal" | "placeholder-literal";
   name: string;
-  /** for kind=fallback: the fallback literal was the empty string */
+  /** for kind=fallback/placeholder-literal: the literal was the empty string */
   empty?: boolean;
 }
 
@@ -102,6 +118,15 @@ export function sstSecretFallbackHits(line: string): SecretFallbackHit[] {
     hits.push({ kind: "literal", name });
   }
 
+  for (const m of line.matchAll(PLACEHOLDER_LITERAL)) {
+    const name = m[1] ?? m[2];
+    const envName = toEnvName(name);
+    if (isAllowlistedEnvVar(envName) || !looksSecret(envName)) continue;
+    const literal = m[3] ?? m[4] ?? m[5] ?? "";
+    if (NON_SECRET_VALUE.test(literal)) continue;
+    hits.push({ kind: "placeholder-literal", name, empty: literal === "" });
+  }
+
   return hits;
 }
 
@@ -113,6 +138,22 @@ function messageFor(hit: SecretFallbackHit): string {
     return (
       `App secret \`${hit.name}\` is hardcoded in sst.config.ts — the value ` +
       `is committed to source. ${fix}`
+    );
+  }
+  if (hit.kind === "placeholder-literal") {
+    if (hit.empty) {
+      return (
+        `sst.Secret \`${hit.name}\` uses an empty-string literal as its ` +
+        `placeholder — pre-\`sst secret set\` deploys silently ship a blank ` +
+        `secret (April 2026 apex incident class). The placeholder must be the ` +
+        `bare CI env var (\`process.env.X\`) or absent.`
+      );
+    }
+    return (
+      `sst.Secret \`${hit.name}\` has a string literal as its placeholder — ` +
+      `the value is committed to source while presenting as the sanctioned ` +
+      `pattern. The placeholder must be the bare CI env var ` +
+      `(\`process.env.X\`) or absent; set real values with \`sst secret set\`.`
     );
   }
   if (hit.empty) {
