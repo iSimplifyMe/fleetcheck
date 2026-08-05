@@ -5,3 +5,6 @@ reports/
 scratch/
 *.log
 .DS_Store
+
+# The private fleet roster lives ONLY in the local checkout — never in this public repo.
+fleet.config.json
