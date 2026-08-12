@@ -9,6 +9,7 @@ import { ahpraSchemaGuard } from "./universal/ahpra-schema-guard.js";
 import { bedrockThinkingParse } from "./universal/bedrock-thinking-parse.js";
 import { forkIdentityConsistency } from "./universal/fork-identity-consistency.js";
 import { nextCve } from "./next/next-cve.js";
+import { authedCacheLeak } from "./next/authed-cache-leak.js";
 import { opennextVersionPin } from "./next/opennext-version-pin.js";
 import { edgeRuntimeOg } from "./next/edge-runtime-og.js";
 import { dynamicParams } from "./next/dynamic-params.js";
@@ -32,6 +33,7 @@ export const allChecks: Check[] = [
   forkIdentityConsistency,
   // next.js / sst
   nextCve,
+  authedCacheLeak,
   opennextVersionPin,
   edgeRuntimeOg,
   dynamicParams,
