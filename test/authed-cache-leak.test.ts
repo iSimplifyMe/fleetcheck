@@ -47,10 +47,10 @@ describe("authed-cache-leak", () => {
     // leads/ under requireAuth layout: implicitly dynamic — no warning layer at all.
     expect(findings.filter((f) => f.severity === "warning")).toHaveLength(0);
 
-    // reports/ declares generateStaticParams inside the gated tree → security.
+    // analytics/ declares generateStaticParams inside the gated tree → security.
     expect(findings).toHaveLength(1);
     expect(findings[0].severity).toBe("security");
-    expect(findings[0].file).toContain("reports");
+    expect(findings[0].file).toContain("analytics");
 
     // blog/ (revalidate, generator-free) sits OUTSIDE the session tree → not gated, silent.
     expect(findings.some((f) => f.file?.includes("blog"))).toBe(false);
