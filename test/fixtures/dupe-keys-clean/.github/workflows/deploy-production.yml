@@ -1,0 +1,22 @@
+name: Deploy Production
+on:
+  push:
+    branches: [main]
+env:
+  SHARP_VERSION: 0.35.4
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      SHARP_VERSION: 0.35.4
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm ci
+        env:
+          SHARP_VERSION: 0.35.4
+          NOTE: |
+            SHARP_VERSION: inside a block scalar is a value, not a key
+      - run: npx sst deploy --stage production
+        env:
+          SHARP_VERSION: 0.35.4
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

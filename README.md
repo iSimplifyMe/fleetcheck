@@ -25,6 +25,10 @@ Each check declares whether it applies to every repo or only to Next.js repos
 | `opennext-version-pin` | next | error | Next 16+ deployed via `sst.aws.Nextjs` without an `openNextVersion` pin ≥ 4.0.2 (the `/_next/image` 500 incident) |
 | `stale-aws-creds` | all | warning | deploy workflows whose recent runs failed on AWS credential errors |
 | `worktrees-gitignore` | all | warning | `.gitignore` missing `.worktrees/` |
+| `sst-domain-env-gate` | all (sst) | error | an env var that decides whether `domain:` EXISTS in `sst.config.ts` is not set by a production deploy workflow — the deploy then runs with `domain: undefined` and SST removes the live DNS records, aliases and redirect while staying green (labreastandbody 2026-11-07, ~30 min dark); warning when nothing in the config fails loudly for the missing value. Value-feeding env vars, stage variables and staging-only workflows never fire |
+| `never-run-prod-workflow` | all | warning | a dispatch-only production deploy workflow with ZERO recorded runs — an untested deploy path whose first dispatch is the test (network: `gh run list`; skipped under `FLEETCHECK_NO_NETWORK`) |
+| `dupe-object-keys` | all | error | duplicate keys in one object literal of `sst.config.ts` / `next.config.*` (JavaScript keeps the LAST one; the earlier value is silently discarded — the 11/07 `providers`/`transform` class) and in one `env:`/`with:` block of a workflow (GitHub rejects the whole file as unparseable) |
+| `middleware-asset-literals` | next | warning | a string-literal asset path in `middleware.ts`/`proxy.ts` that nothing serves — no `public/` file, metadata route or route handler (dead exclusion; the template lineage's site-scope test fails the deploy on it) |
 | `edge-runtime-og` | next | error | files that import `next/og` and declare the edge runtime |
 | `public-dir-collision` | next | error | a `public/<dir>` that collides with an app route (`s3.routes` 403) |
 | `dynamic-params` | next | warning | `dynamicParams = false` — verify `generateStaticParams` is exhaustive |
