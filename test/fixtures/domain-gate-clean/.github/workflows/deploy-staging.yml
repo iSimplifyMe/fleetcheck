@@ -1,0 +1,10 @@
+name: Deploy Staging
+on:
+  workflow_dispatch:
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # CF_ZONE_EXAMPLE deliberately absent: staging has no custom domain.
+      - run: npx sst deploy --stage staging

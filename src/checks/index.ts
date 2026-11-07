@@ -8,6 +8,9 @@ import { sstSecretFallback } from "./universal/sst-secret-fallback.js";
 import { ahpraSchemaGuard } from "./universal/ahpra-schema-guard.js";
 import { bedrockThinkingParse } from "./universal/bedrock-thinking-parse.js";
 import { forkIdentityConsistency } from "./universal/fork-identity-consistency.js";
+import { sstDomainEnvGate } from "./universal/sst-domain-env-gate.js";
+import { neverRunProdWorkflow } from "./universal/never-run-prod-workflow.js";
+import { dupeObjectKeys } from "./universal/dupe-object-keys.js";
 import { nextCve } from "./next/next-cve.js";
 import { authedCacheLeak } from "./next/authed-cache-leak.js";
 import { opennextVersionPin } from "./next/opennext-version-pin.js";
@@ -19,6 +22,7 @@ import { ecaTemplateResidue } from "./next/eca-template-residue.js";
 import { publicDirCollision } from "./next/public-dir-collision.js";
 import { aeoRequirements } from "./next/aeo-requirements.js";
 import { blogSchemaSpokes } from "./next/blog-schema-spokes.js";
+import { middlewareAssetLiterals } from "./next/middleware-asset-literals.js";
 
 // Universal checks apply to every repo.
 // next/ checks apply only when `next` is a dependency (enforced via Check.appliesTo).
@@ -31,6 +35,9 @@ export const allChecks: Check[] = [
   ahpraSchemaGuard,
   bedrockThinkingParse,
   forkIdentityConsistency,
+  sstDomainEnvGate,
+  neverRunProdWorkflow,
+  dupeObjectKeys,
   // next.js / sst
   nextCve,
   authedCacheLeak,
@@ -43,4 +50,5 @@ export const allChecks: Check[] = [
   publicDirCollision,
   aeoRequirements,
   blogSchemaSpokes,
+  middlewareAssetLiterals,
 ];
