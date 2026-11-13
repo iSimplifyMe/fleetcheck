@@ -11,6 +11,7 @@ import { forkIdentityConsistency } from "./universal/fork-identity-consistency.j
 import { sstDomainEnvGate } from "./universal/sst-domain-env-gate.js";
 import { neverRunProdWorkflow } from "./universal/never-run-prod-workflow.js";
 import { dupeObjectKeys } from "./universal/dupe-object-keys.js";
+import { sstBuildEnvSecret } from "./universal/sst-build-env-secret.js";
 import { nextCve } from "./next/next-cve.js";
 import { authedCacheLeak } from "./next/authed-cache-leak.js";
 import { opennextVersionPin } from "./next/opennext-version-pin.js";
@@ -38,6 +39,7 @@ export const allChecks: Check[] = [
   sstDomainEnvGate,
   neverRunProdWorkflow,
   dupeObjectKeys,
+  sstBuildEnvSecret,
   // next.js / sst
   nextCve,
   authedCacheLeak,
